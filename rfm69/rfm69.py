@@ -158,7 +158,7 @@ class Rfm69:
         line = ""
         for i in range(0x80):
             if i % 8 == 0:
-                self.log.info("%#02x: ")
+                line = "  %#04x: " % i
             if i == 0: # Avoid reading FIFO
                 r = 0
             else:

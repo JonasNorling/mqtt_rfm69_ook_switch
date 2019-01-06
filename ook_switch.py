@@ -6,6 +6,7 @@ import time
 from rfm69.rfm69 import Rfm69
 import RPi.GPIO as GPIO
 from protocol_kaku import KakuProtocol
+from mqtt_daemon import MqttDaemon
 
 class OutPin:
     def __init__(self, pin):
@@ -24,6 +25,10 @@ class LED(OutPin):
     def off(self):
         self.set(1)
 
+def control_switch(chip, group_address, switch_id, on):
+    tx_data = KakuProtocol.encode_message(group_address, False, on, switch_id)
+    chip.send_data(tx_data)
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
@@ -34,6 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--switch", "-s", type=int, help="Switch index")
     parser.add_argument("-o", "--on", action="store_true")
     parser.add_argument("-f", "--off", action="store_true")
+    parser.add_argument("--mqtt", metavar="ADDRESS", help="MQTT broker address")
     parser.add_argument("--debug", default=False, action="store_true",
                         help="Enable debug printouts")
     args = parser.parse_args()
@@ -43,10 +49,15 @@ if __name__ == "__main__":
 
     group = args.address
     switch = args.switch
+    tx_data = None
+    mqtt = None
+
     if args.on or args.off:
         if group is None or switch is None:
             parser.error("Missing group address or switch")
         tx_data = KakuProtocol.encode_message(group, False, args.on, switch)
+    if args.mqtt:
+        mqtt = MqttDaemon(args.mqtt)
     else:
         parser.error("Missing --on or --off")
 
@@ -59,6 +70,7 @@ if __name__ == "__main__":
     try:
         with Rfm69(args.spibus, args.spidev,
                 resetpin=resetpin, rxled=rxled, txled=txled, commled=commled) as chip:
+            
             chip.init_ook()
             chip.dump_regs()
             chip.rx_mode()
@@ -66,7 +78,13 @@ if __name__ == "__main__":
                 print("RSSI:", chip.get_rssi())
                 time.sleep(0.5)
 
-                if tx_data:
+                if tx_data is not None:
                     chip.send_data(tx_data)
+
+            if mqtt is not None:
+                mqtt.set_message_callback(lambda group_address, switch_id, on:
+                        control_switch(chip, group_address, switch_id, on))
+                # This call won't return if all is well
+                mqtt.run()
     finally:
         GPIO.cleanup()

@@ -7,6 +7,7 @@ This is an experiment for sending messages to a 433 MHz switch with the KaKu pro
 
 - apt-get install python3-spidev
 - apt-get install python3-rpi.gpio
+- pip3 install --user paho-mqtt
 
 
 ## Raspberry Pi configuration
