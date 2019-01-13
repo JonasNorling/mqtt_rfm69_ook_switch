@@ -7,10 +7,15 @@ import paho.mqtt.client as mqtt
 TOPIC_ROOT = "lights/nexa"
 
 class MqttDaemon:
-    def __init__(self, broker_addr):
+    def __init__(self, broker_addr,
+            tls_insecure=False, ca=None, username=None, password=None):
         self.log = logging.getLogger("mqtt")
         self.broker_addr = broker_addr
         self.message_callback = None
+        self.tls_insecure = tls_insecure
+        self.ca = ca
+        self.username = username
+        self.password = password
 
     def set_message_callback(self, cb):
         self.message_callback = cb
@@ -19,11 +24,18 @@ class MqttDaemon:
         client_id = "%s-%s" % ("ook-switch", platform.node())
 
         client = mqtt.Client(client_id=client_id, clean_session=True)
+        port = 1883
+        if self.tls_ca is not None:
+            client.tls_set(ca_certs=self.tls_ca)
+            client.tls_insecure_set(self.tls_insecure)
+            port = 8883
+        if self.username:
+            client.username_pw_set(self.username, self.password)
         client.on_connect = self.on_connect
         client.on_message = self.on_message
         client.connect(self.broker_addr)
         self.log.info("Connected as %s" % client_id)
-        
+
         try:
             client.loop_forever()
         except KeyboardInterrupt:

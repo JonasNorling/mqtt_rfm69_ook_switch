@@ -39,9 +39,17 @@ if __name__ == "__main__":
     parser.add_argument("--switch", "-s", type=int, help="Switch index")
     parser.add_argument("-o", "--on", action="store_true")
     parser.add_argument("-f", "--off", action="store_true")
-    parser.add_argument("--mqtt", metavar="ADDRESS", help="MQTT broker address")
     parser.add_argument("--debug", default=False, action="store_true",
                         help="Enable debug printouts")
+
+    parser_mqtt = parser.add_argument_group("MQTT")
+    parser_mqtt.add_argument("--mqtt", metavar="ADDRESS", help="MQTT broker address")
+    parser_mqtt.add_argument("--tls-insecure", action="store_true", default=False,
+                        help="Disable hostname verification against cert")
+    parser_mqtt.add_argument("--tls-ca", help="CA certificate that has signed the server's certificate")
+    parser_mqtt.add_argument("--username", "-u", help="Username")
+    parser_mqtt.add_argument("--password", "-p", help="Password")
+
     args = parser.parse_args()
     
     if args.debug:
@@ -57,7 +65,8 @@ if __name__ == "__main__":
             parser.error("Missing group address or switch")
         tx_data = KakuProtocol.encode_message(group, False, args.on, switch)
     if args.mqtt:
-        mqtt = MqttDaemon(args.mqtt)
+        mqtt = MqttDaemon(args.mqtt, tls_insecure=args.tls_insecure,
+                ca=args.tls_ca, username=args.username, password=args.password)
     else:
         parser.error("Missing --on or --off")
 
@@ -70,7 +79,7 @@ if __name__ == "__main__":
     try:
         with Rfm69(args.spibus, args.spidev,
                 resetpin=resetpin, rxled=rxled, txled=txled, commled=commled) as chip:
-            
+
             chip.init_ook()
             chip.dump_regs()
             chip.rx_mode()
