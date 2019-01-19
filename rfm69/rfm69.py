@@ -148,8 +148,8 @@ class Rfm69:
                 self.go_to_mode(REG_OP_MODE_MODE_STANDBY)
                 raise RuntimeError("Stuck TX")
 
-            self.log.info("TX'ed in %d polls" % polls)
-            self.log.info("After TX, IRQ_FLAGS_2=%x, IRQ_FLAGS_1=%x, OP_MODE=%x" % (
+            self.log.debug("TX'ed in %d polls" % polls)
+            self.log.debug("After TX, IRQ_FLAGS_2=%x, IRQ_FLAGS_1=%x, OP_MODE=%x" % (
                 self.read_reg(REG_IRQ_FLAGS_2), self.read_reg(REG_IRQ_FLAGS_1), self.read_reg(REG_OP_MODE)))
             self.go_to_mode(REG_OP_MODE_MODE_STANDBY)
 

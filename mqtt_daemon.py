@@ -13,7 +13,7 @@ class MqttDaemon:
         self.broker_addr = broker_addr
         self.message_callback = None
         self.tls_insecure = tls_insecure
-        self.ca = ca
+        self.tls_ca = ca
         self.username = username
         self.password = password
 
@@ -33,7 +33,7 @@ class MqttDaemon:
             client.username_pw_set(self.username, self.password)
         client.on_connect = self.on_connect
         client.on_message = self.on_message
-        client.connect(self.broker_addr)
+        client.connect(self.broker_addr, port)
         self.log.info("Connected as %s" % client_id)
 
         try:
