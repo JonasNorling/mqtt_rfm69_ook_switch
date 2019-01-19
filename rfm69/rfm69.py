@@ -67,12 +67,12 @@ class Rfm69:
     def calc_frf(f):
         """Calculate FRF register settings for carrier in Hz"""
         fstep = 32e6 / 2**19
-        return f // fstep
+        return int(f // fstep)
 
     @staticmethod
     def calc_bitrate(br_hz):
         """Calculate register setting for bitrate in Hz"""
-        return 32e6 // br_hz
+        return int(32e6 // br_hz)
 
     def init_ook(self, carrier_freq=433.92e6, bitrate=4000, payload_len=64):
         assert(payload_len < 256)
@@ -96,16 +96,21 @@ class Rfm69:
             (REG_FRF_MSB, (reg_frf >> 16) & 0xff),
             (REG_FRF_MID, (reg_frf >> 8) & 0xff),
             (REG_FRF_LSB, reg_frf & 0xff),
+            (REG_RSSI_THRESH, 0xc8), # -100 dBm
             (REG_PREAMBLE_MSB, 0),
             (REG_PREAMBLE_LSB, 0), # No preamble
             (REG_SYNC_CONFIG, 0x00), # No sync word
             (REG_PACKET_CONFIG_1, 0x00), # Packets are fixed length, no CRC or whitening
-            (REG_PAYLOAD_LENGTH, payload_len)
+            (REG_PAYLOAD_LENGTH, payload_len),
+            (REG_OCP, 0x00), # OCP off
+            (REG_PA_LEVEL, 0x70) # PA1, PA2, 2 dBm
             ]
 
         with self.lit(self.commled):
             for addr, value in regs:
                 self.write_reg(addr, value)
+
+            for addr, value in regs:
                 readback = self.read_reg(addr)
                 if readback != value:
                     self.log.error("Readback mismatch %x %x != %x" % (addr, readback, value))
@@ -133,22 +138,27 @@ class Rfm69:
             self.write_fifo(data)
             self.go_to_mode(REG_OP_MODE_MODE_TX)
 
-            for polls in range(1000):
+            for polls in range(10000):
                 flags = self.read_reg(REG_IRQ_FLAGS_2)
                 if flags & REG_IRQ_FLAGS_2_PACKET_SENT:
                     break
             else:
+                self.log.info("Stuck TX, IRQ_FLAGS_2=%x, IRQ_FLAGS_1=%x, OP_MODE=%x" % (
+                    self.read_reg(REG_IRQ_FLAGS_2), self.read_reg(REG_IRQ_FLAGS_1), self.read_reg(REG_OP_MODE)))
                 self.go_to_mode(REG_OP_MODE_MODE_STANDBY)
                 raise RuntimeError("Stuck TX")
 
             self.log.info("TX'ed in %d polls" % polls)
-            self.log.info("We're now in mode %02x" % self.read_reg(REG_OP_MODE))
+            self.log.info("After TX, IRQ_FLAGS_2=%x, IRQ_FLAGS_1=%x, OP_MODE=%x" % (
+                self.read_reg(REG_IRQ_FLAGS_2), self.read_reg(REG_IRQ_FLAGS_1), self.read_reg(REG_OP_MODE)))
             self.go_to_mode(REG_OP_MODE_MODE_STANDBY)
 
     def get_rssi(self):
         with self.lit(self.commled):
+            self.write_reg(REG_RSSI_CONFIG, 0x01)
+            time.sleep(0.01) # Let the chip sample RSSI
             data = self.read_regs(REG_RSSI_CONFIG, 2)
-            if data[0] & 0x01:
+            if data[0] & 0x02:
                 return (-data[1])//2
             else:
                 return 0

@@ -27,7 +27,9 @@ class LED(OutPin):
 
 def control_switch(chip, group_address, switch_id, on):
     tx_data = KakuProtocol.encode_message(group_address, False, on, switch_id)
-    chip.send_data(tx_data)
+    for _ in range(10):
+        chip.send_data(tx_data)
+        time.sleep(0.05)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -64,14 +66,14 @@ if __name__ == "__main__":
         if group is None or switch is None:
             parser.error("Missing group address or switch")
         tx_data = KakuProtocol.encode_message(group, False, args.on, switch)
-    if args.mqtt:
+    elif args.mqtt:
         mqtt = MqttDaemon(args.mqtt, tls_insecure=args.tls_insecure,
                 ca=args.tls_ca, username=args.username, password=args.password)
     else:
         parser.error("Missing --on or --off")
 
     GPIO.setmode(GPIO.BCM)
-    resetpin = None
+    resetpin = OutPin(22)
     rxled = LED(2)
     txled = LED(3)
     commled = LED(27)
@@ -80,15 +82,17 @@ if __name__ == "__main__":
         with Rfm69(args.spibus, args.spidev,
                 resetpin=resetpin, rxled=rxled, txled=txled, commled=commled) as chip:
 
-            chip.init_ook()
+            chip.init_ook(payload_len=len(tx_data))
             chip.dump_regs()
             chip.rx_mode()
-            for _ in range(10):
+            for _ in range(0):
                 print("RSSI:", chip.get_rssi())
-                time.sleep(0.5)
+                time.sleep(0.2)
 
+            for _ in range(10):
                 if tx_data is not None:
                     chip.send_data(tx_data)
+                    time.sleep(0.05)
 
             if mqtt is not None:
                 mqtt.set_message_callback(lambda group_address, switch_id, on:
